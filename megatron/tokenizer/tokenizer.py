@@ -150,6 +150,40 @@ def _vocab_size_with_padding(orig_vocab_size, args):
                   orig_vocab_size, after - orig_vocab_size, after), flush=True)
     return after
 
+# 解释1
+# 1. **词表填充的目的：**  
+#    为了满足分布式训练或模型并行的要求，代码中通过 `_vocab_size_with_padding` 函数计算了一个补齐后的词表大小（例如原始词表大小为 V，经过填充后变为 V_pad，使得 V_pad 能被特定数字整除）。这保证了模型中嵌入矩阵的行数（和最终投影矩阵的输出维度）是对齐且更易于并行分布的。
+
+# 2. **实际的嵌入与输出矩阵：**  
+#    在模型构造阶段，通常会创建两个主要矩阵：
+#    - **词嵌入矩阵**：大小为 `[V_pad, hidden_size]`  
+#    - **输出投影矩阵（或称 softmax 矩阵）**：大小为 `[hidden_size, V_pad]`  
+   
+#    这样，当模型对最后一层 hidden states 进行矩阵乘法时，得到的 logits 张量的维度就是 `[batch_size, sequence_length, V_pad]`。
+
+# 3. **训练中的处理：**  
+#    - **训练标签：** 实际的训练数据只包含原始词表中的 token（即有效 token 对应的 id 范围通常是 0 到 V-1）。  
+#    - **损失计算：** 当使用交叉熵损失时，只有前 V 个位置是真正用于计算损失的；对于那些 dummy token 对应的额外维度（从 V 到 V_pad-1），通常不会出现在训练目标中，因此模型不会因为这些位置而受到损失计算的影响。
+
+# 4. **总结：**  
+#    虽然你在词汇表中没有显示地加入额外的 dummy token，但模型内部构造的嵌入矩阵和输出矩阵都是按照填充后的词表大小（V_pad）构建的。因此，最终矩阵乘完得到的 logits 的维度是 **padded vocab size** 的维度。  
+   
+#    在实际使用时，损失函数和评估过程只关注有效的词表部分（前 V 个 token），而额外的 dummy token 只是用于满足对齐和模型并行的技术要求。
+
+# 解释2
+# PyTorch 的 CrossEntropyLoss 并不是直接比较 input 和 target 的“形状是否完全一致”，而是要求：
+
+# Input（模型输出 logits）：
+# 一个形状为 (N, C)（或更高维度，但最后一维为类别数）的张量，其中 C 表示类别数。在你的场景中，C 就是 padded vocab size。
+
+# Target（标签）：
+# 一个形状为 (N)（或与 input 除了类别维度外其他维度一致）的张量，其中的每个值是一个整数类别索引，其取值范围必须在 [0, C-1] 内。
+
+# 解释3
+# 关于 qwen 词表大小：https://github.com/QwenLM/Qwen2.5/issues/147
+
+
+
 # =============================================================================
 # 抽象基类：AbstractTokenizer
 # 作用：定义分词器需要实现的接口，包括属性（vocab、inv_vocab、vocab_size）和方法
