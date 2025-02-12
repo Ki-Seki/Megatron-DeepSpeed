@@ -330,7 +330,7 @@ class GPTDataset(torch.utils.data.Dataset):
 
         return sample_dict
 
-
+# 创建和读取
 def _build_index_mappings(name, data_prefix, documents, sizes,
                           splits_string, num_samples, seq_length, seed,
                           *,
@@ -394,7 +394,7 @@ def _build_index_mappings(name, data_prefix, documents, sizes,
         for f in idx_path.values():
             if not os.path.isfile(f):
                 break
-        else:
+        else:  # 如果刚刚的for中的break触发
             # Found our files!
             build_indices = False
             break
@@ -608,6 +608,16 @@ def _build_sample_idx(sizes, doc_idx, seq_length,
 
 
 def _build_shuffle_idx(num_samples, total_size, np_rng):
+    """该函数的主要作用是：
+
+将 0 到 total_size 范围内的所有整数生成一个打乱的索引数组。
+它将这个数组分成两个部分：
+从 0 到 num_samples 的部分；
+从 num_samples 到 total_size 的部分。
+每一部分分别生成并打乱，然后拼接起来返回最终结果。"""
+
+
+
     """Build the range [0, size) and shuffle."""
     print(' > building shuffle index with split [0, {}) and [{}, {}) '
           '...'.format(num_samples, num_samples, total_size), flush=True)
