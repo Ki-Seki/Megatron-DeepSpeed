@@ -543,6 +543,7 @@ def _num_epochs(tokens_per_epoch, seq_length, num_samples):
 
 
 def _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch):
+    """documents 就是一维的数组，从0到documents-1"""
     """Build an array with length = number-of-epochs * number-of-dcuments.
     Each index is mapped to a corresponding document."""
     if not separate_last_epoch or num_epochs == 1:
@@ -550,9 +551,10 @@ def _build_doc_idx(documents, num_epochs, np_rng, separate_last_epoch):
         doc_idx[:] = documents
         doc_idx = doc_idx.reshape(-1)
         doc_idx = doc_idx.astype(np.int32)
-        np_rng.shuffle(doc_idx)
+        np_rng.shuffle(doc_idx)  # 随机性来源
         return doc_idx
 
+    # 递归进行如果要seperate
     doc_idx_first = _build_doc_idx(documents, num_epochs-1, np_rng, False)
     doc_idx_last = _build_doc_idx(documents, 1, np_rng, False)
     return np.concatenate((doc_idx_first, doc_idx_last))
