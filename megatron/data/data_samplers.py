@@ -21,7 +21,7 @@ from megatron import get_args
 from megatron.core import mpu
 from deepspeed.runtime.dataloader import RepeatingLoader
 
-
+# 根据 bin 文件那个dataset来构造成pytorch dataloader，按照指定的sample方式
 def build_pretraining_data_loader(dataset, consumed_samples):
     """Buld dataloader given an input dataset."""
 
