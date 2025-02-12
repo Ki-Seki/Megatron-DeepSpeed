@@ -478,6 +478,8 @@ def _print_args(title, args):
 def _check_arg_is_not_none(args, arg):
     assert getattr(args, arg) is not None, '{} argument is None'.format(arg)
 
+
+# pretrain_gpt.py 只直接依赖此中的 args
 def core_transformer_config_from_args(args):
 
     # Translate args to core transformer configuration

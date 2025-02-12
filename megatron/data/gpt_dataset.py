@@ -1,3 +1,15 @@
+"""
+pretrain_gpt.py directly call this at build_train_valid_test_datasets
+
+
+mgds 对数据的处理分为三阶段：
+1. 预处理脚本：把jsonl转换为bin文件，主要是建立索引和tokenization，没有随机性，用indexed_dataset.py 脚本
+2. 构建 index cache：这个过程首先要用indexed_dataset.py 脚本读取数据，然后加载时允许对数据进行shuffle，用本文件里的_build_index_mappings。
+3. data loader：这个主要关注每一个batch怎么取，是顺序无放回得取（single），还是随机有放回得取（cyclic）。
+"""
+
+
+
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 """GPT style dataset."""
@@ -17,6 +29,7 @@ from megatron.data.dataset_utils import get_train_valid_test_split_
 from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 
 
+# 这个函数确定无论是 if-else哪个分支，最终都要调用 make_indexed_dataset
 def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
                                     train_valid_test_num_samples,
                                     seq_length, seed, skip_warmup,
@@ -27,18 +40,18 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
                                     data_cache_path=None):
     """Build train, valid, and test datasets."""
 
-    if data_prefix:
+    if data_prefix:  # data-path 参数启用
         print_rank_0("Single data path provided for train, valid & test")
 
         # Single dataset.
-        if len(data_prefix) == 1:
+        if len(data_prefix) == 1:  # 就一个数据来源
             return _build_train_valid_test_datasets(data_prefix[0],
                                                     data_impl, splits_string,
                                                     train_valid_test_num_samples,
                                                     seq_length, seed, skip_warmup,
                                                     data_cache_path=data_cache_path)
 
-        # Blending dataset.
+        # Blending dataset. 因为有多个数据来源
         # Parse the values.
         output = get_datasets_weights_and_num_samples(data_prefix,
                                                       train_valid_test_num_samples)
@@ -83,7 +96,7 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
         return (blending_train_dataset, blending_valid_dataset,
                 blending_test_dataset)
 
-    else:
+    else:  # 可能会提供 train-data-path, valid-data-path 等
         print_rank_0("Separate data paths provided for train, valid & test. Split string will be ignored.")
 
         train_dataset, valid_dataset, test_dataset = None, None, None

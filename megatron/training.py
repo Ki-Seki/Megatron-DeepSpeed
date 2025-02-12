@@ -128,6 +128,7 @@ def pretrain(train_valid_test_dataset_provider,
     # Initalize and get arguments, timers, and Tensorboard writer.
     initialize_megatron(extra_args_provider=extra_args_provider,
                         args_defaults=args_defaults, external_args=external_args)
+    # initialize_megatron 会初始化所有 arguments.py 里的 parsers
 
     args = get_args()
 

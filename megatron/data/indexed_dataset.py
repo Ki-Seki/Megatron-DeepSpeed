@@ -1,3 +1,10 @@
+"""
+这个里面，make_dataset 是核心入口。pretrain_gpt.py 也会调用到这个，它是来read。
+
+preprocess_data 同样会调用这里，他主要是write数据。
+
+"""
+
 # =============================================================================
 # 模块说明：
 # 1. 本模块主要用于构造和加载经过预处理的索引数据集（Indexed Dataset），支持多种实现方式：
@@ -87,7 +94,7 @@ def make_dataset(path, impl, skip_warmup=False):
         print("Path should be a basename that both .idx and .bin can be appended to get full filenames.")
         return None
     if impl == 'infer':
-        impl = infer_dataset_impl(path)
+        impl = infer_dataset_impl(path)  # 通过数据集开头的魔法字符串来推断，我们用的都是mmap的，默认的也是这个。
     if impl == 'lazy' and IndexedDataset.exists(path):
         return IndexedDataset(path)
     elif impl == 'cached' and IndexedDataset.exists(path):

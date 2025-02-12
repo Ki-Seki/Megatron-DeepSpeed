@@ -1,3 +1,13 @@
+"""
+主要提供了 single 和 cyclic 两种加载方式，默认是前者。
+
+single：顺序iter数据；
+cyclic：循环且随机的取数据。
+
+mgds 的 pretrain_gpt.py 没有用到。
+"""
+
+
 # Copyright (c) 2022, NVIDIA CORPORATION. All rights reserved.
 
 """Dataloaders."""
