@@ -562,7 +562,7 @@ def train_valid_test_datasets_provider(train_val_test_num_samples):
       train_val_test_num_samples (tuple): 各数据集的样本数量（train, valid, test）
 
     返回:
-      train_ds, valid_ds, test_ds: 分别为训练、验证和测试数据集对象
+      train_ds, valid_ds, test_ds: 分别为训练、验证和测试数据集对象（他们都是GPTDataset类型的）
     """
     args = get_args()
 

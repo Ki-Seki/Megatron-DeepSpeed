@@ -1,11 +1,56 @@
 """
-pretrain_gpt.py directly call this at build_train_valid_test_datasets
+# MGDS 数据管线：
+1. 预处理（preprocess_data.py，indexed_dataset.py）：
+    - 把jsonl转换为bin文件，主要是建立索引和 tokenization，没有随机性
+2. 构建 index-cache（indexed_dataset.py，gpt_dataset.py::_build_index_mappings）：
+    - 首先要用indexed_dataset.py 脚本读取数据，
+    - 然后加载时允许对数据进行shuffle，
+    - 而且通过计算数据epochs确保指定训练的tokens数一定被满足，
+    - 用本文件里的
+3. 构建 GPTDataset（pretrain_gpt.py::train_valid_test_datasets_provider, gpt_dataset.py::build_train_valid_test_datasets）：
+    - train_valid_test_datasets_provider 会调用这个抽象
+    - 而 provider 会被 training.py
+    - 给定index-cache类型的索引，返回真正bin文件里的数据
+4. data loader（training.py::build_train_valid_test_data_loaders，data_samplers.py）：
+    - 这个主要实现每一个batch怎么取，
+    - 是顺序无放回得取（single），还是随机有放回得取（cyclic）
+5. data iterator（training::build_train_valid_test_data_iterators.py）：
+    - 把 torch 的 data loader 变为迭代器
+    - 这里还受到 checkpointing.py 模块的支持（args.iteration 会被更新为真实 resume 时候的 iteration）
+        他会根据 iteration number 来计算 consumed_train_samples，以确保 resume 的时候不会重复读数据，而是会循环读数据
+6. 最终由 train_step 来读取：
+    - 读取一个 batch 的数据，计算 loss
+    - 完整调用顺序是在 training.py 里体现：pretrain() -> train() -> train_step()
 
+# Claude 画的数据管线函数调用关系
 
-mgds 对数据的处理分为三阶段：
-1. 预处理脚本：把jsonl转换为bin文件，主要是建立索引和tokenization，没有随机性，用indexed_dataset.py 脚本
-2. 构建 index cache：这个过程首先要用indexed_dataset.py 脚本读取数据，然后加载时允许对数据进行shuffle，用本文件里的_build_index_mappings。
-3. data loader：这个主要关注每一个batch怎么取，是顺序无放回得取（single），还是随机有放回得取（cyclic）。
+预处理流程(在训练前独立执行)：
+preprocess_data.py
+└─> indexed_dataset.py: 
+    ├─> 将jsonl转换为bin文件
+    ├─> 建立索引
+    └─> 执行tokenization
+
+pretrain_gpt.py::train_valid_test_datasets_provider
+├─> gpt_dataset.py::build_train_valid_test_datasets
+│   ├─> indexed_dataset.py::MMapIndexedDataset: 读取预处理好的bin文件数据
+│   └─> gpt_dataset.py::_build_index_mappings: 构建index-cache
+│       ├─> 实现数据shuffle功能
+│       └─> 计算epochs以满足训练tokens数要求
+│
+└─> training.py::pretrain
+    ├─> training.py::build_train_valid_test_data_iterators
+    │   └─> training.py::build_train_valid_test_data_loaders
+    │       └─> data_samplers.py::build_pretraining_data_loader
+    │           ├─> 实现"single"模式: 顺序无放回采样
+    │           └─> 实现"cyclic"模式: 随机有放回采样
+    │
+    ├─> checkpointing.py::load_checkpoint
+    │   ├─> 更新args.iteration为resume点
+    │   └─> 计算consumed_train_samples确保不重复读数据
+    │
+    └─> training.py::train
+        └─> training.py::train_step: 读取batch并计算loss
 """
 
 
@@ -30,6 +75,7 @@ from megatron.data.indexed_dataset import make_dataset as make_indexed_dataset
 
 
 # 这个函数确定无论是 if-else哪个分支，最终都要调用 make_indexed_dataset
+# 第一，主要处理多来源数据，以及train/val/test
 def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
                                     train_valid_test_num_samples,
                                     seq_length, seed, skip_warmup,
@@ -125,7 +171,7 @@ def build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
 
         return (train_dataset, valid_dataset, test_dataset)
 
-
+# 第二，主要是真正的构建多个GPTDataset，就是能通过index-cache来加载数据的那个类，GPTDataset
 def _build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
                                      train_valid_test_num_samples,
                                      seq_length, seed, skip_warmup,
@@ -172,7 +218,7 @@ def _build_train_valid_test_datasets(data_prefix, data_impl, splits_string,
 
     return (train_dataset, valid_dataset, test_dataset)
 
-
+# 第三，构建单独的一个dataset
 def build_dataset(dataset_name, data_prefix, data_impl,
                   splits_string, num_samples,
                   seq_length, seed, skip_warmup,
@@ -207,7 +253,7 @@ def build_dataset(dataset_name, data_prefix, data_impl,
 
     return dataset
 
-
+# 第四，第三的辅助
 def _build_dataset(dataset_name, data_prefix, data_impl, splits_string,
                    num_samples, seq_length, seed, skip_warmup,
                    *,
@@ -253,7 +299,7 @@ def get_indexed_dataset_(data_prefix, data_impl, skip_warmup):
 
     return indexed_dataset
 
-
+# 这个是以index-cache为中间索引，去索引真正的 MMap 数据
 class GPTDataset(torch.utils.data.Dataset):
 
     def __init__(self, name, data_prefix, documents, indexed_dataset,
